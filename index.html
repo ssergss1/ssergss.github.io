@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>🔥 Дуэль: Удар и Блок</title>
+  <title>🐺 Волчий Combat</title>
   <script src="https://telegram.org/js/telegram-web-app.js?58"></script>
   <style>
     body {
@@ -17,11 +17,13 @@
       margin: 0;
       overflow-x: hidden;
     }
+
     h1 {
       font-size: 1.8rem;
       margin-bottom: 10px;
       text-align: center;
     }
+
     .section {
       background: rgba(255,255,255,0.05);
       border: 1px solid rgba(255,255,255,0.2);
@@ -30,12 +32,24 @@
       margin: 10px 0;
       width: 100%;
       max-width: 360px;
+      text-align: center;
     }
-    .choices label {
-      display: block;
-      margin: 8px 0;
-      cursor: pointer;
+
+    .hp-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 8px;
     }
+
+    .hp-block {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      margin: 2px;
+    }
+
     button {
       background: #ff4747;
       border: none;
@@ -45,12 +59,9 @@
       font-size: 1rem;
       cursor: pointer;
       margin-top: 15px;
-      transition: background 0.3s;
       width: 100%;
     }
-    button:hover {
-      background: #e63e3e;
-    }
+
     .log {
       white-space: pre-line;
       font-size: 0.9rem;
@@ -62,54 +73,46 @@
       border-radius: 10px;
       max-height: 200px;
       overflow-y: auto;
+      margin-top: 10px;
     }
-    .hp-bar {
-      display: flex;
-      gap: 4px;
-      margin-bottom: 10px;
-    }
-    .heart {
-      font-size: 1.2rem;
-    }
-    .red { color: #ff4d4d; }
-    .blue { color: #4da6ff; }
-    .black { color: #333; }
+
     .overlay {
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: rgba(0, 0, 0, 0.85);
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0.9);
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
       color: white;
       font-size: 1.5rem;
-      display: none;
       z-index: 1000;
+      display: none;
     }
-    .overlay button {
-      margin-top: 20px;
-      background: #44c767;
-    }
-    .shake {
-      animation: shake 0.5s ease;
-    }
-    @keyframes shake {
-      0% { transform: translateX(0); }
-      20% { transform: translateX(-5px); }
-      40% { transform: translateX(5px); }
-      60% { transform: translateX(-5px); }
-      80% { transform: translateX(5px); }
-      100% { transform: translateX(0); }
+
+    .stats {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 15px;
+      padding: 10px;
+      margin: 10px 0;
+      width: 100%;
+      max-width: 360px;
+      text-align: center;
+      font-size: 0.9rem;
     }
   </style>
 </head>
 <body>
 
-  <h1>🔥 Дуэль: Удар и Блок</h1>
+  <h1>🐺 Волчий Combat</h1>
+
+  <div class="stats" id="stats">
+    <strong>Статистика:</strong><br>
+    Побед: <span id="wins">0</span><br>
+    Поражений: <span id="losses">0</span>
+  </div>
 
   <div class="section">
     <strong>HP Игрока:</strong>
@@ -144,20 +147,27 @@
   </div>
 
   <script>
-    // Telegram WebApp инициализация
     const WebApp = window.Telegram.WebApp;
     WebApp.ready();
     WebApp.expand();
+    WebApp.BackButton.show();
 
-    // Основные переменные
     let playerHP = 10;
     let computerHP = 10;
     let round = 1;
-    let playerAttackDebuff = 0;
-    let computerAttackDebuff = 0;
 
     const epithets = ["НЕИСТОВО", "МОЩНО", "РЕЗКО", "СИЛЬНО", "ЖЕСТКО", "БЕЗУМНО"];
     const funnyEpithets = ["КРИВО", "СЛАБО", "ХИЛО", "УБОГО", "КАК БАБА"];
+
+    const stats = {
+      wins: parseInt(localStorage.getItem('wolf_combat_wins')) || 0,
+      losses: parseInt(localStorage.getItem('wolf_combat_losses')) || 0
+    };
+
+    function updateStats() {
+      document.getElementById('wins').textContent = stats.wins;
+      document.getElementById('losses').textContent = stats.losses;
+    }
 
     function getChoice(name) {
       const el = document.querySelector(`input[name=${name}]:checked`);
@@ -182,9 +192,17 @@
       const computerHPBar = document.getElementById('computerHP');
       playerHPBar.innerHTML = '';
       computerHPBar.innerHTML = '';
+
       for (let i = 0; i < 10; i++) {
-        playerHPBar.innerHTML += `<span class="heart ${i < playerHP ? 'red' : 'black'}">❤</span>`;
-        computerHPBar.innerHTML += `<span class="heart ${i < computerHP ? 'blue' : 'black'}">❤</span>`;
+        const playerBlock = document.createElement('span');
+        playerBlock.className = 'hp-block';
+        playerBlock.style.backgroundColor = i < playerHP ? '#ff4d4d' : '#333';
+        playerHPBar.appendChild(playerBlock);
+
+        const computerBlock = document.createElement('span');
+        computerBlock.className = 'hp-block';
+        computerBlock.style.backgroundColor = i < computerHP ? '#4da6ff' : '#333';
+        computerHPBar.appendChild(computerBlock);
       }
     }
 
@@ -192,9 +210,8 @@
       const logEl = document.getElementById('log');
       const gameOverEl = document.getElementById('gameOver');
       const resultText = document.getElementById('resultText');
-      const okBtn = document.getElementById('okBtn');
 
-      if (playerHP <= 0 || computerHP <= 0) return;
+      if (playerHP <= 0 && computerHP <= 0) return;
 
       const playerBlock = getChoice('block');
       const playerAttack = getChoice('attack');
@@ -207,18 +224,22 @@
       const computerBlock = randomChoice(['head', 'body', 'none']);
       const computerAttack = randomChoice(['head', 'body']);
 
-      let playerDmg = calcDamage(playerAttack, playerBlock, computerBlock, playerAttackDebuff);
-      let computerDmg = calcDamage(computerAttack, computerBlock, playerBlock, computerAttackDebuff);
+      let playerDmg = calcDamage(playerAttack, playerBlock, computerBlock, 0);
+      let computerDmg = calcDamage(computerAttack, computerBlock, playerBlock, 0);
 
       if (playerHP === 1) playerDmg += 1;
+      if (computerHP === 1) computerDmg += 1;
 
-      let isPlayerKO = false, isComputerKO = false;
+      let isPlayerKO = false;
+      let isComputerKO = false;
 
-      if (playerAttack === 'head' && computerBlock === 'none' && Math.random() < 0.3) {
+      if (playerAttack === 'head' && computerBlock === 'none' && Math.random() < 0.05) {
         playerDmg = computerHP;
         computerHP = 0;
         isPlayerKO = true;
-      } else if (computerAttack === 'head' && playerBlock === 'none' && Math.random() < 0.3) {
+      }
+
+      if (computerAttack === 'head' && playerBlock === 'none' && Math.random() < 0.05) {
         computerDmg = playerHP;
         playerHP = 0;
         isComputerKO = true;
@@ -227,33 +248,57 @@
       if (playerHP > 0) playerHP = Math.max(0, playerHP - computerDmg);
       if (computerHP > 0) computerHP = Math.max(0, computerHP - playerDmg);
 
-      computerAttackDebuff = playerAttack === 'body' ? 1 : 0;
-      playerAttackDebuff = computerAttack === 'body' ? 1 : 0;
-
-      if (playerDmg > 0 || computerDmg > 0) {
-        okBtn.classList.add('shake');
-        setTimeout(() => okBtn.classList.remove('shake'), 500);
-      }
-
       const epithetPlayer = playerDmg > 0 ? randomChoice(epithets) : randomChoice(funnyEpithets);
       const epithetComp = computerDmg > 0 ? randomChoice(epithets) : randomChoice(funnyEpithets);
 
+      let playerAttackLog = `Игрок ${epithetPlayer} ударил компьютер в ${playerAttack === 'head' ? 'голову' : 'живот'} нанеся ${playerDmg} урона.`;
+      let computerAttackLog = `Компьютер ${epithetComp} ударил игрока в ${computerAttack === 'head' ? 'голову' : 'живот'} нанеся ${computerDmg} урона.`;
+
+      if (playerDmg > 0 && playerAttack === 'body') playerAttackLog += ' И выбил дух!';
+      if (computerDmg > 0 && computerAttack === 'body') computerAttackLog += ' И выбил дух!';
+
       let out = `Раунд ${round}\n`;
-      out += `Игрок ${epithetPlayer} ударил в ${playerAttack === 'head' ? 'голову' : 'живот'} нанеся ${playerDmg} урона.\n`;
-      out += `Компьютер ${epithetComp} ударил в ${computerAttack === 'head' ? 'голову' : 'живот'} нанеся ${computerDmg} урона.\n`;
+      out += playerAttackLog + "\n";
+      out += computerAttackLog + "\n";
       out += `\nУ игрока: ${playerHP} HP\nУ компьютера: ${computerHP} HP\n`;
 
-      if (playerHP <= 0 || computerHP <= 0) {
+      let finalHitLog = "";
+
+      if (playerHP === 0 && computerHP === 0) {
+        finalHitLog = `НИЧЬЯ! Ничего себе, они друг друга вырубили!`;
+        out += `\n${finalHitLog}`;
+        logEl.innerText = out;
+        gameOverEl.style.display = 'flex';
+        resultText.innerHTML = finalHitLog;
+      } else if (playerHP <= 0 || computerHP <= 0) {
+        if (round === 1 && isPlayerKO) {
+          finalHitLog = `Нокаут! Игрок нежданул компьютера`;
+        } else if (round === 1 && isComputerKO) {
+          finalHitLog = `Нокаут! Компьютер нежданул игрока`;
+        } else if (isPlayerKO) {
+          finalHitLog = `💥💥 УДАР ГРОМА 🎯⚡💥\nИгрок БЕЗУМНО ударил в голову и нанёс нокаут!`;
+        } else if (isComputerKO) {
+          finalHitLog = `💥💥 НОКАУТ 🎯⚡💥\nКомпьютер БЕЗУМНО ударил в голову и нанёс нокаут!`;
+        } else {
+          finalHitLog = playerHP <= 0 ? computerAttackLog : playerAttackLog;
+        }
+
         out += `\n🏁 Победил: ${playerHP > 0 ? 'Игрок' : 'Компьютер'}!`;
         logEl.innerText = out;
         gameOverEl.style.display = 'flex';
-        resultText.innerHTML = `🏁 Победил: ${playerHP > 0 ? 'Игрок' : 'Компьютер'}!`;
+        resultText.innerHTML = `🏁 Победил: ${playerHP > 0 ? 'Игрок' : 'Компьютер'}!<br><small>${finalHitLog}</small>`;
+
+        if (playerHP > 0) stats.wins++;
+        else stats.losses++;
+        localStorage.setItem('wolf_combat_wins', stats.wins);
+        localStorage.setItem('wolf_combat_losses', stats.losses);
+        updateStats();
       } else {
         round++;
         out += `\n--- Новый раунд! ---\n`;
+        logEl.innerText = out;
       }
 
-      logEl.innerText = out;
       updateHearts();
     }
 
@@ -261,8 +306,6 @@
       playerHP = 10;
       computerHP = 10;
       round = 1;
-      playerAttackDebuff = 0;
-      computerAttackDebuff = 0;
       document.getElementById('log').textContent = '';
       document.getElementById('gameOver').style.display = 'none';
       updateHearts();
@@ -272,10 +315,9 @@
       WebApp.close();
     });
 
-    WebApp.BackButton.show();
-
     window.addEventListener('DOMContentLoaded', () => {
       updateHearts();
+      updateStats();
     });
   </script>
 </body>
