@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>🔥 Дуэль: Удар и Блок</title>
+  <script src="https://telegram.org/js/telegram-web-app.js?58"></script>
+  <style>
+    body {
+      background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
+      font-family: 'Segoe UI', sans-serif;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      margin: 0;
+      overflow-x: hidden;
+    }
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    .section {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 15px;
+      padding: 15px;
+      margin: 10px 0;
+      width: 100%;
+      max-width: 360px;
+    }
+    .choices label {
+      display: block;
+      margin: 8px 0;
+      cursor: pointer;
+    }
+    button {
+      background: #ff4747;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 10px;
+      color: white;
+      font-size: 1rem;
+      cursor: pointer;
+      margin-top: 15px;
+      transition: background 0.3s;
+      width: 100%;
+    }
+    button:hover {
+      background: #e63e3e;
+    }
+    .log {
+      white-space: pre-line;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      background: #222;
+      border: 2px solid yellow;
+      color: #ffeb3b;
+      padding: 10px;
+      border-radius: 10px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .hp-bar {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 10px;
+    }
+    .heart {
+      font-size: 1.2rem;
+    }
+    .red { color: #ff4d4d; }
+    .blue { color: #4da6ff; }
+    .black { color: #333; }
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      font-size: 1.5rem;
+      display: none;
+      z-index: 1000;
+    }
+    .overlay button {
+      margin-top: 20px;
+      background: #44c767;
+    }
+    .shake {
+      animation: shake 0.5s ease;
+    }
+    @keyframes shake {
+      0% { transform: translateX(0); }
+      20% { transform: translateX(-5px); }
+      40% { transform: translateX(5px); }
+      60% { transform: translateX(-5px); }
+      80% { transform: translateX(5px); }
+      100% { transform: translateX(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🔥 Дуэль: Удар и Блок</h1>
+
+  <div class="section">
+    <strong>HP Игрока:</strong>
+    <div class="hp-bar" id="playerHP"></div>
+    <strong>HP Компьютера:</strong>
+    <div class="hp-bar" id="computerHP"></div>
+  </div>
+
+  <div class="section">
+    <strong>Выбери блок:</strong>
+    <div class="choices" id="blockChoices">
+      <label><input type="radio" name="block" value="head" checked> Голова</label>
+      <label><input type="radio" name="block" value="body"> Живот</label>
+      <label><input type="radio" name="block" value="none"> Без блока (+2 урон)</label>
+    </div>
+  </div>
+
+  <div class="section">
+    <strong>Куда ударить?</strong>
+    <div class="choices" id="attackChoices">
+      <label><input type="radio" name="attack" value="head"> Голова (+1 урон)</label>
+      <label><input type="radio" name="attack" value="body" checked> Живот</label>
+    </div>
+    <button id="okBtn" onclick="playRound()">ОК ✅</button>
+  </div>
+
+  <div class="section log" id="log"></div>
+
+  <div class="overlay" id="gameOver">
+    <div id="resultText"></div>
+    <button onclick="restartGame()">🔄 Заново</button>
+  </div>
+
+  <script>
+    // Telegram WebApp инициализация
+    const WebApp = window.Telegram.WebApp;
+    WebApp.ready();
+    WebApp.expand();
+
+    // Основные переменные
+    let playerHP = 10;
+    let computerHP = 10;
+    let round = 1;
+    let playerAttackDebuff = 0;
+    let computerAttackDebuff = 0;
+
+    const epithets = ["НЕИСТОВО", "МОЩНО", "РЕЗКО", "СИЛЬНО", "ЖЕСТКО", "БЕЗУМНО"];
+    const funnyEpithets = ["КРИВО", "СЛАБО", "ХИЛО", "УБОГО", "КАК БАБА"];
+
+    function getChoice(name) {
+      const el = document.querySelector(`input[name=${name}]:checked`);
+      return el ? el.value : null;
+    }
+
+    function randomChoice(arr) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function calcDamage(targetArea, attackerBlock, defenderBlock, attackDebuff) {
+      let base = 2;
+      if (targetArea === 'head') base += 1;
+      if (attackerBlock === 'none') base += 2;
+      base = Math.max(0, base - attackDebuff);
+      if (defenderBlock === targetArea) return 0;
+      return base;
+    }
+
+    function updateHearts() {
+      const playerHPBar = document.getElementById('playerHP');
+      const computerHPBar = document.getElementById('computerHP');
+      playerHPBar.innerHTML = '';
+      computerHPBar.innerHTML = '';
+      for (let i = 0; i < 10; i++) {
+        playerHPBar.innerHTML += `<span class="heart ${i < playerHP ? 'red' : 'black'}">❤</span>`;
+        computerHPBar.innerHTML += `<span class="heart ${i < computerHP ? 'blue' : 'black'}">❤</span>`;
+      }
+    }
+
+    function playRound() {
+      const logEl = document.getElementById('log');
+      const gameOverEl = document.getElementById('gameOver');
+      const resultText = document.getElementById('resultText');
+      const okBtn = document.getElementById('okBtn');
+
+      if (playerHP <= 0 || computerHP <= 0) return;
+
+      const playerBlock = getChoice('block');
+      const playerAttack = getChoice('attack');
+
+      if (!playerBlock || !playerAttack) {
+        WebApp.showAlert('Выберите блок и атаку!');
+        return;
+      }
+
+      const computerBlock = randomChoice(['head', 'body', 'none']);
+      const computerAttack = randomChoice(['head', 'body']);
+
+      let playerDmg = calcDamage(playerAttack, playerBlock, computerBlock, playerAttackDebuff);
+      let computerDmg = calcDamage(computerAttack, computerBlock, playerBlock, computerAttackDebuff);
+
+      if (playerHP === 1) playerDmg += 1;
+
+      let isPlayerKO = false, isComputerKO = false;
+
+      if (playerAttack === 'head' && computerBlock === 'none' && Math.random() < 0.3) {
+        playerDmg = computerHP;
+        computerHP = 0;
+        isPlayerKO = true;
+      } else if (computerAttack === 'head' && playerBlock === 'none' && Math.random() < 0.3) {
+        computerDmg = playerHP;
+        playerHP = 0;
+        isComputerKO = true;
+      }
+
+      if (playerHP > 0) playerHP = Math.max(0, playerHP - computerDmg);
+      if (computerHP > 0) computerHP = Math.max(0, computerHP - playerDmg);
+
+      computerAttackDebuff = playerAttack === 'body' ? 1 : 0;
+      playerAttackDebuff = computerAttack === 'body' ? 1 : 0;
+
+      if (playerDmg > 0 || computerDmg > 0) {
+        okBtn.classList.add('shake');
+        setTimeout(() => okBtn.classList.remove('shake'), 500);
+      }
+
+      const epithetPlayer = playerDmg > 0 ? randomChoice(epithets) : randomChoice(funnyEpithets);
+      const epithetComp = computerDmg > 0 ? randomChoice(epithets) : randomChoice(funnyEpithets);
+
+      let out = `Раунд ${round}\n`;
+      out += `Игрок ${epithetPlayer} ударил в ${playerAttack === 'head' ? 'голову' : 'живот'} нанеся ${playerDmg} урона.\n`;
+      out += `Компьютер ${epithetComp} ударил в ${computerAttack === 'head' ? 'голову' : 'живот'} нанеся ${computerDmg} урона.\n`;
+      out += `\nУ игрока: ${playerHP} HP\nУ компьютера: ${computerHP} HP\n`;
+
+      if (playerHP <= 0 || computerHP <= 0) {
+        out += `\n🏁 Победил: ${playerHP > 0 ? 'Игрок' : 'Компьютер'}!`;
+        logEl.innerText = out;
+        gameOverEl.style.display = 'flex';
+        resultText.innerHTML = `🏁 Победил: ${playerHP > 0 ? 'Игрок' : 'Компьютер'}!`;
+      } else {
+        round++;
+        out += `\n--- Новый раунд! ---\n`;
+      }
+
+      logEl.innerText = out;
+      updateHearts();
+    }
+
+    function restartGame() {
+      playerHP = 10;
+      computerHP = 10;
+      round = 1;
+      playerAttackDebuff = 0;
+      computerAttackDebuff = 0;
+      document.getElementById('log').textContent = '';
+      document.getElementById('gameOver').style.display = 'none';
+      updateHearts();
+    }
+
+    WebApp.onEvent('backButtonClicked', () => {
+      WebApp.close();
+    });
+
+    WebApp.BackButton.show();
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateHearts();
+    });
+  </script>
+</body>
+</html>
